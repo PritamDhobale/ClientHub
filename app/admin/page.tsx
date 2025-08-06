@@ -10,68 +10,106 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, CheckCircle, Clock, XCircle, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase" 
+import { useRouter } from "next/navigation"
+
+
+type ClientRow = {
+  id: number
+  name: string
+  email: string
+  progress: number
+  status: string
+  role: string
+  joinDate: string
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth()
+  const router = useRouter()
+  const [clients, setClients] = useState<ClientRow[]>([])
+
+useEffect(() => {
+  const fetchClients = async () => {
+    const { data: clientData, error: clientError } = await supabase
+      .from("clients")
+      .select("client_id, business_name, created_at")
+
+    if (clientError) {
+      console.error("Failed to fetch clients", clientError)
+      return
+    }
+
+    const { data: docData, error: docError } = await supabase
+      .from("documents")
+      .select("client_id, document_type, status")
+
+    if (docError) {
+      console.error("Failed to fetch documents", docError)
+      return
+    }
+
+    const totalSteps = 4
+
+    const clientList: ClientRow[] = clientData.map((client) => {
+      const docs = docData.filter((d) => d.client_id === client.client_id)
+
+      const approvedCount = docs.filter((d) => d.status === "approved").length
+      const progress = Math.round((approvedCount / totalSteps) * 100)
+
+      let status = "Pending"
+      if (progress === 100) status = "Completed"
+      else if (docs.some((d) => d.status === "rejected")) status = "Rejected"
+      else if (docs.length > 0) status = "In Progress"
+
+      return {
+        id: client.client_id,
+        name: client.business_name,
+        email: "-", // no email in clients table
+        progress,
+        status,
+        role: "Client", // default/fake until real role logic is added
+        joinDate: client.created_at?.split("T")[0] || "-",
+      }
+    })
+
+    setClients(clientList)
+  }
+
+  fetchClients()
+}, [])
 
   if (!user || user.role !== "admin") {
     return <div>Access denied</div>
   }
 
   const metrics = [
-    { title: "Total Clients", value: "156", icon: Users, color: "blue" },
-    { title: "Verified", value: "89", icon: CheckCircle, color: "green" },
-    { title: "Pending", value: "52", icon: Clock, color: "yellow" },
-    { title: "Rejected", value: "15", icon: XCircle, color: "red" },
-  ]
-
-  const clients = [
-    {
-      id: 1,
-      name: "John Smith",
-      email: "john@example.com",
-      progress: 75,
-      status: "In Progress",
-      role: "Client",
-      joinDate: "2024-01-15",
-    },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      email: "sarah@example.com",
-      progress: 100,
-      status: "Completed",
-      role: "Client",
-      joinDate: "2024-01-10",
-    },
-    {
-      id: 3,
-      name: "Mike Wilson",
-      email: "mike@example.com",
-      progress: 25,
-      status: "Pending",
-      role: "Service",
-      joinDate: "2024-01-18",
-    },
-    {
-      id: 4,
-      name: "Emily Davis",
-      email: "emily@example.com",
-      progress: 90,
-      status: "Review",
-      role: "Client",
-      joinDate: "2024-01-12",
-    },
-    {
-      id: 5,
-      name: "David Brown",
-      email: "david@example.com",
-      progress: 0,
-      status: "Rejected",
-      role: "Client",
-      joinDate: "2024-01-20",
-    },
-  ]
+  {
+    title: "Total Clients",
+    value: clients.length.toString(),
+    icon: Users,
+    color: "blue"
+  },
+  {
+    title: "Verified",
+    value: clients.filter(c => c.status === "Completed").length.toString(),
+    icon: CheckCircle,
+    color: "green"
+  },
+  {
+    title: "Pending",
+    value: clients.filter(c => c.status === "Pending").length.toString(),
+    icon: Clock,
+    color: "yellow"
+  },
+  {
+    title: "Rejected",
+    value: clients.filter(c => c.status === "Rejected").length.toString(),
+    icon: XCircle,
+    color: "red"
+  }
+]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -214,7 +252,7 @@ export default function AdminDashboard() {
               <CardDescription>Review pending document submissions</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">Review Documents</Button>
+              <Button className="w-full" onClick={() => router.push("/admin/document-review")}>Review Documents</Button>
             </CardContent>
           </Card>
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -7,20 +8,56 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Clock, AlertCircle, User, Shield, FileCheck, Award } from "lucide-react"
+import { supabase } from "@/lib/supabase"
+
+type DocumentType = {
+  document_type: string
+  status: string
+  uploaded_at: string
+}
 
 export default function OnboardingStatusPage() {
   const { user } = useAuth()
+  const [documents, setDocuments] = useState<DocumentType[]>([])
 
-  if (!user || user.role !== "client") {
-    return <div>Access denied</div>
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!user?.id) return
+      const { data, error } = await supabase
+        .from("documents")
+        .select("document_type, status, uploaded_at")
+        .eq("uploaded_by", user.id)
+
+      if (!error && data) {
+        setDocuments(data)
+      } else {
+        console.error("Error fetching documents:", error)
+      }
+    }
+
+    fetchDocuments()
+  }, [user?.id])
+
+  const getStepStatus = (type: string): string => {
+    const relevant = documents.filter((doc) =>
+      doc.document_type?.toLowerCase().includes(type.toLowerCase())
+    )
+    return relevant[0]?.status || "pending"
+  }
+
+  const getLastUpdated = (type: string): string | null => {
+    const relevant = documents
+      .filter((doc) => doc.document_type?.toLowerCase().includes(type.toLowerCase()))
+      .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+    return relevant[0]?.uploaded_at?.split("T")[0] || null
   }
 
   const onboardingSteps = [
     {
       id: "profile",
       title: "Profile Verification",
-      status: "completed",
-      lastUpdated: "2024-01-15",
+      status: getStepStatus("profile"),
+      lastUpdated: getLastUpdated("profile"),
       icon: User,
       description: "Personal information verified successfully",
       details: "All required personal information has been verified and approved.",
@@ -28,8 +65,8 @@ export default function OnboardingStatusPage() {
     {
       id: "kyc",
       title: "KYC Review",
-      status: "in-progress",
-      lastUpdated: "2024-01-16",
+      status: getStepStatus("kyc"),
+      lastUpdated: getLastUpdated("kyc"),
       icon: Shield,
       description: "Identity documents under review",
       details: "Your identity documents are currently being reviewed by our verification team.",
@@ -37,8 +74,8 @@ export default function OnboardingStatusPage() {
     {
       id: "insurance",
       title: "Insurance Verification",
-      status: "pending",
-      lastUpdated: null,
+      status: getStepStatus("insurance"),
+      lastUpdated: getLastUpdated("insurance"),
       icon: FileCheck,
       description: "Insurance documents required",
       details: "Please upload your insurance certificate to proceed with this step.",
@@ -46,8 +83,8 @@ export default function OnboardingStatusPage() {
     {
       id: "final",
       title: "Final Approval",
-      status: "pending",
-      lastUpdated: null,
+      status: getStepStatus("final"),
+      lastUpdated: getLastUpdated("final"),
       icon: Award,
       description: "Awaiting final approval",
       details: "Final approval will be processed once all previous steps are completed.",
@@ -57,11 +94,14 @@ export default function OnboardingStatusPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
+      case "approved":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
       case "in-progress":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
       case "pending":
+      case "review":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+      case "rejected":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
     }
@@ -70,18 +110,28 @@ export default function OnboardingStatusPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
+      case "approved":
         return <CheckCircle className="h-4 w-4" />
       case "in-progress":
-        return <Clock className="h-4 w-4" />
       case "pending":
+      case "review":
+        return <Clock className="h-4 w-4" />
+      case "rejected":
         return <AlertCircle className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
     }
   }
 
-  const completedSteps = onboardingSteps.filter((step) => step.status === "completed").length
+  const completedSteps = onboardingSteps.filter(
+    (step) => step.status === "approved" || step.status === "completed"
+  ).length
+
   const progressPercentage = (completedSteps / onboardingSteps.length) * 100
+
+  if (!user || user.role !== "client") {
+    return <div>Access denied</div>
+  }
 
   return (
     <DashboardLayout breadcrumbs={[{ label: "Onboarding Status" }]}>
@@ -126,13 +176,7 @@ export default function OnboardingStatusPage() {
                     <div className="flex items-start space-x-4">
                       <div className="flex-shrink-0">
                         <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                            step.status === "completed"
-                              ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300"
-                              : step.status === "in-progress"
-                                ? "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300"
-                                : "bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300"
-                          }`}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full ${getStatusColor(step.status)}`}
                         >
                           <StepIcon className="h-5 w-5" />
                         </div>
@@ -151,7 +195,7 @@ export default function OnboardingStatusPage() {
                         <span className="ml-1 capitalize">{step.status.replace("-", " ")}</span>
                       </Badge>
                       <Button variant="outline" size="sm">
-                        {step.status === "pending" ? "Start" : step.status === "completed" ? "View" : "Continue"}
+                        {step.status === "pending" ? "Start" : step.status === "approved" ? "View" : "Continue"}
                       </Button>
                     </div>
                   </div>

@@ -10,77 +10,97 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal, Eye, Edit, Trash2, Search } from "lucide-react"
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
+type ClientWithUser = {
+  client_id: string;
+  business_name: string;
+  status?: string;
+  created_by: string;
+  created_at: string;
+  assigned_service_center: string | null;
+
+  // These come from users (nested object from Supabase join)
+  users?: {
+    email?: string;
+    full_name?: string;
+    role?: string;
+  };
+
+  // Derived or computed on frontend
+  email?: string;
+  full_name?: string;
+  role?: string;
+  progress?: number;
+}
+
 
 export default function AllClientsPage() {
   const { user } = useAuth()
+const [clients, setClients] = useState<ClientWithUser[]>([])
+const [filteredClients, setFilteredClients] = useState<ClientWithUser[]>([])
+const [statusFilter, setStatusFilter] = useState("all")
+const [roleFilter, setRoleFilter] = useState("all")
+const [searchQuery, setSearchQuery] = useState("")
 
-  if (!user || user.role !== "admin") {
-    return <div>Access denied</div>
+useEffect(() => {
+  const fetchClients = async () => {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*, users:users!clients_created_by_fkey (email, full_name, role)")
+
+    if (error) {
+      console.error("Error fetching clients:", error)
+      return
+    }
+
+    console.log("Fetched clients:", data)
+
+    if (data) {
+      const cleanedData = data.map((client) => ({
+        ...client,
+        role: client.users?.role ?? "Client",
+        email: client.users?.email ?? "",
+        full_name: client.users?.full_name ?? "",
+        progress: 0 // You can customize this based on actual progress logic
+      }))
+      setClients(cleanedData)
+      setFilteredClients(cleanedData)
+    }
   }
 
-  const clients = [
-    {
-      id: 1,
-      name: "John Smith",
-      email: "john@example.com",
-      progress: 75,
-      status: "In Progress",
-      role: "Client",
-      joinDate: "2024-01-15",
-      phone: "+1 (555) 123-4567",
-    },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      email: "sarah@example.com",
-      progress: 100,
-      status: "Completed",
-      role: "Client",
-      joinDate: "2024-01-10",
-      phone: "+1 (555) 234-5678",
-    },
-    {
-      id: 3,
-      name: "Mike Wilson",
-      email: "mike@example.com",
-      progress: 25,
-      status: "Pending",
-      role: "Service",
-      joinDate: "2024-01-18",
-      phone: "+1 (555) 345-6789",
-    },
-    {
-      id: 4,
-      name: "Emily Davis",
-      email: "emily@example.com",
-      progress: 90,
-      status: "Review",
-      role: "Client",
-      joinDate: "2024-01-12",
-      phone: "+1 (555) 456-7890",
-    },
-    {
-      id: 5,
-      name: "David Brown",
-      email: "david@example.com",
-      progress: 0,
-      status: "Rejected",
-      role: "Client",
-      joinDate: "2024-01-20",
-      phone: "+1 (555) 567-8901",
-    },
-    {
-      id: 6,
-      name: "Lisa Anderson",
-      email: "lisa@example.com",
-      progress: 60,
-      status: "In Progress",
-      role: "Client",
-      joinDate: "2024-01-08",
-      phone: "+1 (555) 678-9012",
-    },
-  ]
+  fetchClients()
+}, [])
+
+useEffect(() => {
+  let result = [...clients]
+
+  if (statusFilter !== "all") {
+    result = result.filter(client => client.status?.toLowerCase() === statusFilter)
+  }
+
+  if (roleFilter !== "all") {
+    result = result.filter(client =>
+      (client.role || "").toLowerCase() === roleFilter.toLowerCase()
+    )
+  }
+
+  if (searchQuery.trim() !== "") {
+    result = result.filter(client =>
+      client.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }
+
+  setFilteredClients(result)
+}, [clients, statusFilter, roleFilter, searchQuery])
+
+// ✅ Now you can safely conditionally render
+if (!user || user.role !== "admin") {
+  return <div>Access denied</div>
+}
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -117,24 +137,32 @@ export default function AllClientsPage() {
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search clients..." className="pl-8" />
+                  <Input
+                    placeholder="Search clients..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
               </div>
-              <Select defaultValue="all">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-40">
-                  <SelectValue />
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="in progress">In Progress</SelectItem>
+                  <SelectItem value="review">Review</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="all">
+
+              {/* Role Filter */}
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="w-32">
-                  <SelectValue />
+                  <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
@@ -168,31 +196,34 @@ export default function AllClientsPage() {
               </TableHeader>
               <TableBody>
                 {clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{client.email}</TableCell>
-                    <TableCell className="text-muted-foreground">{client.phone}</TableCell>
+                  <TableRow key={client.client_id}>
+                    <TableCell className="font-medium">{client.full_name || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{client.email || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">—</TableCell> {/* phone not available yet */}
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Progress value={client.progress} className="w-16" />
-                        <span className="text-sm text-muted-foreground">{client.progress}%</span>
+                        <Progress value={client.progress || 0} className="w-16" />
+                        <span className="text-sm text-muted-foreground">{client.progress || 0}%</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(client.status)}>{client.status}</Badge>
+                      <Badge className={getStatusColor(client.status || "")}>{client.status || "—"}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Select defaultValue={client.role.toLowerCase()}>
-                        <SelectTrigger className="w-24">
+                      <Select defaultValue={(client.role || "client").toLowerCase()}>
+                        <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="client">Client</SelectItem>
-                          <SelectItem value="service">Service</SelectItem>
+                          <SelectItem value="service_center">Service Center</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{client.joinDate}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(client.created_at).toLocaleDateString("en-GB")}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

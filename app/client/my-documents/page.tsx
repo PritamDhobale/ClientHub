@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -7,21 +8,38 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Clock, AlertCircle, Eye, Download } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 export default function MyDocumentsPage() {
   const { user } = useAuth()
+  const [documents, setDocuments] = useState<any[]>([])
+
+  useEffect(() => {
+  if (!user?.id) return;
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("file_name, file_url, status, uploaded_at, document_type")
+      .eq("uploaded_by", user.id) // ✅ correct: match UUID
+      .order("uploaded_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load documents:", error.message);
+    } else {
+      setDocuments(data || []);
+    }
+  };
+
+  if (user.role === "client") {
+    fetchDocuments();
+  }
+}, [user?.id]);
+
 
   if (!user || user.role !== "client") {
     return <div>Access denied</div>
   }
-
-  const documents = [
-    { name: "ID_Proof.pdf", uploadDate: "2024-01-15", status: "approved", size: "2.3 MB" },
-    { name: "Address_Proof.pdf", uploadDate: "2024-01-15", status: "approved", size: "1.8 MB" },
-    { name: "Insurance_Certificate.pdf", uploadDate: "2024-01-16", status: "pending", size: "3.1 MB" },
-    { name: "Bank_Statement.pdf", uploadDate: "2024-01-16", status: "rejected", size: "2.7 MB" },
-    { name: "Employment_Letter.pdf", uploadDate: "2024-01-17", status: "pending", size: "1.2 MB" },
-  ]
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -66,39 +84,50 @@ export default function MyDocumentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Type</TableHead>
                   <TableHead>Filename</TableHead>
                   <TableHead>Upload Date</TableHead>
-                  <TableHead>Size</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((doc, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{doc.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{doc.uploadDate}</TableCell>
-                    <TableCell className="text-muted-foreground">{doc.size}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(doc.status)}>
-                        {getStatusIcon(doc.status)}
-                        <span className="ml-1 capitalize">{doc.status}</span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-4 w-4 mr-1" />
-                          Preview
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {documents.map((doc, index) => {
+                  const type = doc.document_type || "Unknown"
+                  const filename = doc.file_name.split("/").pop()
+
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="capitalize">{type}</TableCell>
+                      <TableCell className="font-medium">{filename}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(doc.uploaded_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(doc.status)}>
+                          {getStatusIcon(doc.status)}
+                          <span className="ml-1 capitalize">{doc.status}</span>
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex gap-2 justify-end">
+                          <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              Preview
+                            </Button>
+                          </a>
+                          <a href={doc.file_url} download>
+                            <Button variant="outline" size="sm">
+                              <Download className="h-4 w-4 mr-1" />
+                              Download
+                            </Button>
+                          </a>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </CardContent>

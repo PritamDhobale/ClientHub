@@ -7,6 +7,7 @@ import { Upload, File, X, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent } from "@/components/ui/card"
+import { supabase } from "@/lib/supabase" 
 
 interface FileUploadProps {
   onUpload?: (files: File[]) => void
@@ -19,6 +20,8 @@ export function FileUpload({ onUpload, maxFiles = 10, acceptedTypes = [".pdf", "
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadComplete, setUploadComplete] = useState(false)
+  const [documentType, setDocumentType] = useState("")
+  const user = supabase.auth.getUser()
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -41,25 +44,61 @@ export function FileUpload({ onUpload, maxFiles = 10, acceptedTypes = [".pdf", "
   }
 
   const handleUpload = async () => {
-    if (files.length === 0) return
-
-    setUploading(true)
-    setUploadProgress(0)
-
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setUploading(false)
-          setUploadComplete(true)
-          onUpload?.(files)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
+  if (!documentType) {
+    alert("Please select a document type before uploading.")
+    return
   }
+
+  if (files.length === 0) return
+
+  setUploading(true)
+  setUploadProgress(0)
+
+  const user = (await supabase.auth.getUser()).data.user
+  if (!user) {
+    alert("Please log in to upload files.")
+    return
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const fileExt = file.name.split('.').pop()
+    const filePath = `${documentType}/${user.id}/${Date.now()}_${file.name}`
+
+    const { data, error: uploadError } = await supabase.storage
+      .from("client-documents")
+      .upload(filePath, file)
+
+    if (uploadError) {
+      console.error(`Upload failed for ${file.name}:`, uploadError.message)
+      continue
+    }
+
+    const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/client-documents/${filePath}`
+
+    const { error: insertError } = await supabase.from("documents").insert([
+      {
+        uploaded_by: user.email,
+        file_name: file.name,
+        file_url: publicUrl,
+        status: "pending",
+        uploaded_at: new Date().toISOString(),
+        document_type: documentType,
+      },
+    ])
+
+    if (insertError) {
+      console.error(`Insert failed for ${file.name}:`, insertError.message)
+    }
+
+    setUploadProgress(Math.round(((i + 1) / files.length) * 100))
+  }
+
+  setUploading(false)
+  setUploadComplete(true)
+  onUpload?.(files)
+}
+
 
   if (uploadComplete) {
     return (
@@ -85,7 +124,32 @@ export function FileUpload({ onUpload, maxFiles = 10, acceptedTypes = [".pdf", "
   }
 
   return (
+    
     <div className="space-y-4">
+      <div>
+          <label htmlFor="documentType" className="block text-sm font-medium mb-2">
+            Document Type
+          </label>
+          <select
+            id="documentType"
+            value={documentType}
+            onChange={(e) => setDocumentType(e.target.value)}
+            className="w-full border border-gray-300 rounded-md p-2"
+          >
+            <option value="">Select document type</option>
+            <option value="Bank Statements">Bank Statements</option>
+            <option value="Credit Card Statements">Credit Card Statements</option>
+            <option value="Tax Returns">Tax Returns</option>
+            <option value="Payroll Reports">Payroll Reports</option>
+            <option value="Asset List">Asset List</option>
+            <option value="Loan Statements">Loan Statements</option>
+            <option value="W-9 Forms">W-9 Forms</option>
+            <option value="Profile">Profile</option>
+            <option value="KYC">KYC</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Final">Final</option>
+          </select>
+        </div>
       <div
         className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-muted-foreground/50 transition-colors"
         onDrop={handleDrop}

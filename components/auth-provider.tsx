@@ -3,8 +3,10 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 
 type User = {
+  id: string
   email: string
   name: string
   role: "client" | "admin" | "service-center"
@@ -12,18 +14,12 @@ type User = {
 
 type AuthContextType = {
   user: User | null
-  login: (email: string, password: string) => boolean
+  login: (email: string, password: string) => Promise<boolean>
   logout: () => void
   isLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-const demoAccounts = [
-  { email: "client@demo.com", password: "demo123", name: "John Smith", role: "client" as const },
-  { email: "admin@gentyx.com", password: "demo123", name: "Sarah Johnson", role: "admin" as const },
-  { email: "service@center.com", password: "demo123", name: "Mike Wilson", role: "service-center" as const },
-]
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -31,39 +27,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
 
+  // ✅ Restore user session from Supabase on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem("gentyx-user")
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const restoreUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        const { id, email } = session.user
+
+        const { data: profile, error: roleError } = await supabase
+          .from("users")
+          .select("role, full_name")
+          .eq("id", id)
+          .single()
+
+        if (!roleError && profile) {
+          const userData: User = {
+            id,
+            email: email ?? "",
+            name: profile.full_name || "User",
+            role: profile.role.toLowerCase() as User["role"]
+          }
+
+          setUser(userData)
+        }
+      }
+
+      setIsLoading(false)
     }
-    setIsLoading(false)
+
+    restoreUser()
   }, [])
 
+  // ⏩ Redirect to role-based dashboard
   useEffect(() => {
     if (!isLoading && user && pathname === "/") {
       router.push(`/${user.role === "service-center" ? "service-center" : user.role}`)
     }
   }, [user, isLoading, pathname, router])
 
-  const login = (email: string, password: string) => {
-    const account = demoAccounts.find((acc) => acc.email === email && acc.password === password)
-    if (account) {
-      const userData = { email: account.email, name: account.name, role: account.role }
-      setUser(userData)
-      localStorage.setItem("gentyx-user", JSON.stringify(userData))
-      router.push(`/${account.role === "service-center" ? "service-center" : account.role}`)
-      return true
+  // 🔐 Login with Supabase
+  const login = async (email: string, password: string): Promise<boolean> => {
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error || !authData.user) {
+      console.error("Login failed:", error?.message)
+      return false
     }
-    return false
+
+    const { id, email: userEmail } = authData.user
+
+    const { data: profile, error: roleError } = await supabase
+      .from("users")
+      .select("role, full_name")
+      .eq("id", id)
+      .single()
+
+    if (roleError || !profile) {
+      console.error("Failed to fetch user role:", roleError?.message)
+      return false
+    }
+
+    const userData: User = {
+      id,
+      email: userEmail ?? "",
+      name: profile.full_name || "User",
+      role: profile.role.toLowerCase() as User["role"],
+    }
+
+    setUser(userData)
+    return true
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
-    localStorage.removeItem("gentyx-user")
     router.push("/")
   }
 
-  return <AuthContext.Provider value={{ user, login, logout, isLoading }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

@@ -5,60 +5,104 @@ import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { FileUpload } from "@/components/file-upload"
-import { Upload, FileText, CheckCircle, Clock, AlertCircle, User, Shield, FileCheck, Award, Eye } from "lucide-react"
+import { Upload, FileText, CheckCircle, Clock, AlertCircle, User as UserIcon, Shield, FileCheck, Award, Eye, User } from "lucide-react"
+import { supabase } from "@/lib/supabase"
+import { User as SupabaseUser } from "@supabase/supabase-js"
+import { useEffect, useState } from "react"
+
+type DocumentType = {
+  file_name: string
+  file_url: string
+  status: string
+  uploaded_at: string
+}
 
 export default function ClientDashboard() {
+  const router = useRouter()
   const { user } = useAuth()
 
   if (!user || user.role !== "client") {
     return <div>Access denied</div>
   }
 
-  const onboardingSteps = [
-    {
-      id: "profile",
-      title: "Profile Verification",
-      status: "completed",
-      lastUpdated: "2024-01-15",
-      icon: User,
-      description: "Personal information verified",
-    },
-    {
-      id: "kyc",
-      title: "KYC Review",
-      status: "in-progress",
-      lastUpdated: "2024-01-16",
-      icon: Shield,
-      description: "Identity documents under review",
-    },
-    {
-      id: "insurance",
-      title: "Insurance Verification",
-      status: "pending",
-      lastUpdated: null,
-      icon: FileCheck,
-      description: "Insurance documents required",
-    },
-    {
-      id: "final",
-      title: "Final Approval",
-      status: "pending",
-      lastUpdated: null,
-      icon: Award,
-      description: "Awaiting final approval",
-    },
-  ]
+const [documents, setDocuments] = useState<any[]>([])
 
-  const documents = [
-    { name: "ID_Proof.pdf", uploadDate: "2024-01-15", status: "approved" },
-    { name: "Address_Proof.pdf", uploadDate: "2024-01-15", status: "approved" },
-    { name: "Insurance_Certificate.pdf", uploadDate: "2024-01-16", status: "pending" },
-    { name: "Bank_Statement.pdf", uploadDate: "2024-01-16", status: "rejected" },
-  ]
+const getStepStatus = (type: string): string => {
+  const relevant = documents.filter((doc) =>
+    doc.document_type?.toLowerCase().includes(type.toLowerCase())
+  )
+  return relevant[0]?.status || "pending"
+}
+
+const getLastUpdated = (type: string): string | null => {
+  const relevant = documents
+    .filter((doc) => doc.document_type?.toLowerCase().includes(type.toLowerCase()))
+    .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+  return relevant[0]?.uploaded_at?.split("T")[0] || null
+}
+
+const onboardingSteps = [
+  {
+    id: "profile",
+    title: "Profile Verification",
+    status: getStepStatus("Profile"),
+    lastUpdated: getLastUpdated("Profile"),
+    icon: UserIcon,
+    description: "Personal information verified",
+  },
+  {
+    id: "kyc",
+    title: "KYC Review",
+    status: getStepStatus("KYC"),
+    lastUpdated: getLastUpdated("KYC"),
+    icon: Shield,
+    description: "Identity documents under review",
+  },
+  {
+    id: "insurance",
+    title: "Insurance Verification",
+    status: getStepStatus("Insurance"),
+    lastUpdated: getLastUpdated("Insurance"),
+    icon: FileCheck,
+    description: "Insurance documents required",
+  },
+  {
+    id: "final",
+    title: "Final Approval",
+    status: getStepStatus("Final"),
+    lastUpdated: getLastUpdated("Final"),
+    icon: Award,
+    description: "Awaiting final approval",
+  },
+]
+
+
+useEffect(() => {
+  if (!user?.id) return; // Prevent running before user is loaded
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("file_name, file_url, status, uploaded_at, document_type")
+      .eq("uploaded_by", user.id); // Correct use of id
+
+    if (error) {
+      console.error("Failed to load documents:", error.message);
+    } else {
+      setDocuments(data || []);
+    }
+  };
+
+  if (user.role === "client") {
+    fetchDocuments();
+  }
+}, [user?.id]); // 👈 dependency only on user ID
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -93,6 +137,76 @@ export default function ClientDashboard() {
   const completedSteps = onboardingSteps.filter((step) => step.status === "completed").length
   const progressPercentage = (completedSteps / onboardingSteps.length) * 100
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [documentType, setDocumentType] = useState("")
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFile(e.target.files[0])
+    }
+  }
+
+  const handleUpload = async () => {
+  if (!selectedFile || !documentType) return;
+
+  const { data: authUser, error: authError } = await supabase.auth.getUser();
+  if (authError || !authUser?.user) {
+    console.error("Failed to get auth user:", authError);
+    return;
+  }
+
+  const uid = authUser.user.id;
+
+  const { data: clientRecord, error: clientError } = await supabase
+    .from("clients")
+    .select("client_id")
+    .eq("created_by", uid)  // 👈 use your actual column name
+    .maybeSingle();
+
+  if (clientError || !clientRecord) {
+  console.error("Client not found for user:", clientError || "No record");
+  return;
+}
+
+  const clientId = clientRecord.client_id;
+
+  const fileExt = selectedFile.name.split(".").pop();
+  const filePath = `${documentType}/${uid}/${Date.now()}.${fileExt}`;
+
+  const { data, error: uploadError } = await supabase.storage
+    .from("client-documents")
+    .upload(filePath, selectedFile);
+
+  if (uploadError) {
+    console.error("Upload failed:", uploadError);
+    return;
+  }
+
+  const { error: insertError } = await supabase.from("documents").insert([
+  {
+    uploaded_by: uid,
+    client_id: clientId,
+    file_name: selectedFile.name,
+    file_url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/client-documents/${filePath}`,
+    status: "pending",
+    uploaded_at: new Date().toISOString(),
+    file_type: selectedFile.type,
+    document_type: documentType,
+  },
+]);
+
+
+
+  if (insertError) {
+    console.error("Insert failed:", insertError);
+    return;
+  }
+
+  alert("Uploaded successfully!");
+  setSelectedFile(null);
+  setDocumentType("");
+};
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -110,7 +224,7 @@ export default function ClientDashboard() {
               <Upload className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <Button size="sm" className="w-full">
+              <Button size="sm" className="w-full" onClick={() => router.push("/client/upload-documents")}>
                 Upload Files
               </Button>
             </CardContent>
@@ -217,6 +331,7 @@ export default function ClientDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Type</TableHead>
                       <TableHead>Filename</TableHead>
                       <TableHead>Upload Date</TableHead>
                       <TableHead>Status</TableHead>
@@ -226,8 +341,15 @@ export default function ClientDashboard() {
                   <TableBody>
                     {documents.map((doc, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">{doc.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{doc.uploadDate}</TableCell>
+                        <TableCell className="capitalize">
+                          {doc.document_type || "Unknown"}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {doc.file_name.split("/").pop()} {/* Filename */}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {new Date(doc.uploaded_at).toLocaleDateString()}
+                        </TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(doc.status)}>
                             {getStatusIcon(doc.status)}
@@ -235,10 +357,12 @@ export default function ClientDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-4 w-4 mr-1" />
-                            Preview
-                          </Button>
+                          <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              Preview
+                            </Button>
+                          </a>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -248,14 +372,54 @@ export default function ClientDashboard() {
             </Card>
           </TabsContent>
 
+           {/* TabsContent value="upload-documents" */}
           <TabsContent value="upload-documents" className="space-y-4">
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>Upload Documents</CardTitle>
-                <CardDescription>Upload required documents for your onboarding process</CardDescription>
+                <CardDescription>Select a type and upload required documents</CardDescription>
               </CardHeader>
               <CardContent>
-                <FileUpload />
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="documentType" className="text-sm font-medium">
+                      Document Type
+                    </label>
+                    <select
+                      id="documentType"
+                      value={documentType}
+                      onChange={(e) => setDocumentType(e.target.value)}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    >
+                      <option value="">Select document type</option>
+                      <option value="Bank Statements">Bank Statements</option>
+                      <option value="Credit Card Statements">Credit Card Statements</option>
+                      <option value="Tax Returns">Tax Returns</option>
+                      <option value="Payroll Reports">Payroll Reports</option>
+                      <option value="Asset List">Asset List</option>
+                      <option value="Loan Statements">Loan Statements</option>
+                      <option value="W-9 Forms">W-9 Forms</option>
+                      <option value="Profile">Profile</option>
+                      <option value="KYC">KYC</option>
+                      <option value="Insurance">Insurance</option>
+                      <option value="Final">Final</option>
+                    </select>
+                  </div>
+
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png"
+                    onChange={handleFileChange}
+                  />
+
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!selectedFile || !documentType}
+                    className="mt-2"
+                  >
+                    Upload
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
