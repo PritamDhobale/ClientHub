@@ -218,51 +218,56 @@ useEffect(() => {
 
         {/* Top Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upload Documents</CardTitle>
-              <Upload className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <Button size="sm" className="w-full" onClick={() => router.push("/client/upload-documents")}>
-                Upload Files
-              </Button>
-            </CardContent>
-          </Card>
+  {/* Accent 1 - #6D6E71 (Muted Gray) */}
+  <Card className="shadow-sm bg-[#6D6E71] text-white">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Upload Documents</CardTitle>
+      <Upload className="h-4 w-4 text-white" />
+    </CardHeader>
+    <CardContent>
+      <Button size="sm" className="w-full" onClick={() => router.push("/client/upload-documents")}>
+        Upload Files
+      </Button>
+    </CardContent>
+  </Card>
 
-          <Card className="shadow-sm bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Onboarding Progress</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{progressPercentage.toFixed(0)}%</div>
-              <Progress value={progressPercentage} className="mt-2" />
-            </CardContent>
-          </Card>
+  {/* Accent 2 - #476E2C */}
+  <Card className="shadow-sm bg-[#00C4F0] text-white">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Onboarding Progress</CardTitle>
+      <CheckCircle className="h-4 w-4 text-white" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{progressPercentage.toFixed(0)}%</div>
+      <Progress value={progressPercentage} className="mt-2" />
+    </CardContent>
+  </Card>
 
-          <Card className="shadow-sm bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Documents</CardTitle>
-              <FileText className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{documents.length}</div>
-              <p className="text-xs text-muted-foreground">Total uploaded</p>
-            </CardContent>
-          </Card>
+  {/* Accent 3 - #00B0F0 */}
+  <Card className="shadow-sm bg-[#FFD23E] text-white">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Documents</CardTitle>
+      <FileText className="h-4 w-4 text-white" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{documents.length}</div>
+      <p className="text-xs opacity-80">Total uploaded</p>
+    </CardContent>
+  </Card>
 
-          <Card className="shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm font-medium">In Progress</div>
-              <p className="text-xs text-muted-foreground">KYC Review</p>
-            </CardContent>
-          </Card>
-        </div>
+  {/* Accent 4 - #FF6F61 */}
+  <Card className="shadow-sm bg-[#FF6F61] text-white">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">Status</CardTitle>
+      <Clock className="h-4 w-4 text-white" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-sm font-medium">In Progress</div>
+      <p className="text-xs opacity-80">KYC Review</p>
+    </CardContent>
+  </Card>
+</div>
+
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="onboarding-status" className="space-y-4">
@@ -413,12 +418,13 @@ useEffect(() => {
                   />
 
                   <Button
-                    onClick={handleUpload}
-                    disabled={!selectedFile || !documentType}
-                    className="mt-2"
-                  >
-                    Upload
-                  </Button>
+  onClick={handleUpload}
+  disabled={!selectedFile || !documentType}
+  className="mt-2 !bg-[#99D600] text-white !opacity-100 disabled:cursor-not-allowed"
+>
+  Upload
+</Button>
+
                 </div>
               </CardContent>
             </Card>

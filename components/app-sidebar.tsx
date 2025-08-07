@@ -62,64 +62,83 @@ export function AppSidebar() {
     user.role === "client" ? clientMenuItems : user.role === "admin" ? adminMenuItems : serviceCenterMenuItems
 
   return (
-    <Sidebar variant="inset">
-      <SidebarHeader className="border-b border-border/40">
-        <div className="flex items-center justify-between px-2 py-2">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Shield className="h-4 w-4" />
+  <Sidebar
+    variant="inset"
+    className="!bg-[#024D6C] !text-white dark:!bg-[#024D6C] dark:!text-white"
+  >
+    <SidebarHeader className="border-b border-border/40 !bg-[#024D6C] !text-white">
+      <div className="flex items-center justify-between px-2 py-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg">
+            <img
+              src="/images/Gentyx.png" // 👈 Replace this if your file is named differently or in another path
+              alt="Gentyx Logo"
+              className="h-5 w-5 object-contain"
+            />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold text-white">Gentyx ClientHub</span>
+            <span className="truncate text-xs text-white/70 capitalize">
+              {user.role === "service-center" ? "Service Center" : user.role}
+            </span>
+          </div>
+        </div>
+        <ThemeToggle />
+      </div>
+    </SidebarHeader>
+
+
+    <SidebarContent className="!bg-[#024D6C] !text-white">
+      <SidebarGroup>
+        <SidebarGroupLabel className="text-white/80">Navigation</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {menuItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild>
+                  <Link
+                    href={item.url}
+                    className="flex items-center gap-3 text-white hover:text-white/90"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </SidebarContent>
+
+    <SidebarFooter className="border-t border-border/40 !bg-[#024D6C] !text-white">
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#024D6C]">
+              {user.name.charAt(0)}
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">Gentyx ClientHub</span>
-              <span className="truncate text-xs text-muted-foreground capitalize">
-                {user.role === "service-center" ? "Service Center" : user.role}
-              </span>
+              <span className="truncate font-medium text-white">{user.name}</span>
+              <span className="truncate text-xs text-white/70">{user.email}</span>
             </div>
           </div>
-          <ThemeToggle />
-        </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.url} className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="border-t border-border/40">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                {user.name.charAt(0)}
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-              </div>
-            </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <Button variant="ghost" className="w-full justify-start" onClick={logout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              <span>Sign Out</span>
-            </Button>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
-  )
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-white hover:text-white/90"
+            onClick={logout}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            <span>Sign Out</span>
+          </Button>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </SidebarFooter>
+
+    <SidebarRail className="!bg-[#024D6C]" />
+  </Sidebar>
+)
+
 }

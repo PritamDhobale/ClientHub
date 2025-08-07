@@ -7,6 +7,7 @@ import { AlertCircle } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { supabase } from "@/lib/supabase"
 import Image from "next/image"
+import { Eye, EyeOff } from "lucide-react"
 import "./login.css"
 import { useSearchParams } from "next/navigation"
 
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [redirect, setRedirect] = useState("/")
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -110,9 +112,34 @@ export default function LoginPage() {
         <Image src="/images/accountshub.png" alt="AccountsHub" width={160} height={50} className="login-logo-img" />
         <form onSubmit={handleSubmit} style={{ width: "100%" }}>
           <label>Email Address</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input type="email" placeholder="user@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="********"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{ paddingRight: "2.5rem" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: "absolute",
+                right: "8px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#999" // 👈 makes it subtle like placeholder
+              }}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
           {error && (
             <div className="error-message">
