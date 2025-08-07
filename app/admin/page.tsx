@@ -89,13 +89,13 @@ useEffect(() => {
     title: "Total Clients",
     value: clients.length.toString(),
     icon: Users,
-    color: "blue"
+    color: "grey"
   },
   {
     title: "Verified",
     value: clients.filter(c => c.status === "Completed").length.toString(),
     icon: CheckCircle,
-    color: "green"
+    color: "blue"
   },
   {
     title: "Pending",
@@ -130,17 +130,18 @@ useEffect(() => {
   const getMetricColor = (color: string) => {
     switch (color) {
       case "blue":
-        return "from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 text-blue-600"
+        return "bg-gradient-to-br from-[#00B0F0] to-[#009ACF] text-white"
       case "green":
-        return "from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 text-green-600"
+        return "bg-gradient-to-br from-[#6AA84F] to-[#476E2C] text-white"
       case "yellow":
-        return "from-yellow-50 to-yellow-100 dark:from-yellow-950 dark:to-yellow-900 text-yellow-600"
+        return "bg-gradient-to-br from-[#FFD23E] to-[#FFC107] text-white"
       case "red":
-        return "from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 text-red-600"
+        return "bg-gradient-to-br from-[#FF6F61] to-[#E85C50] text-white"
       default:
-        return "from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 text-gray-600"
+        return "bg-gradient-to-br from-[#6D6E71] to-[#4E4F52] text-white"
     }
   }
+
 
   return (
     <DashboardLayout>

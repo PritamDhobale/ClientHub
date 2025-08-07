@@ -21,7 +21,6 @@ export function FileUpload({ onUpload, maxFiles = 10, acceptedTypes = [".pdf", "
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadComplete, setUploadComplete] = useState(false)
   const [documentType, setDocumentType] = useState("")
-  const user = supabase.auth.getUser()
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
@@ -78,7 +77,7 @@ export function FileUpload({ onUpload, maxFiles = 10, acceptedTypes = [".pdf", "
 
     const { error: insertError } = await supabase.from("documents").insert([
       {
-        uploaded_by: user.email,
+        uploaded_by: user.id,
         file_name: file.name,
         file_url: publicUrl,
         status: "pending",
