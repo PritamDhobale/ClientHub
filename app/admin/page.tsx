@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation"
 
 
 type ClientRow = {
-  id: number
+  id: string // UUID, not number
   name: string
   email: string
   progress: number
@@ -34,7 +34,13 @@ useEffect(() => {
   const fetchClients = async () => {
     const { data: clientData, error: clientError } = await supabase
       .from("clients")
-      .select("client_id, business_name, created_at")
+      .select(`
+        client_id,
+        business_name,
+        created_at,
+        created_by,
+        users:created_by (email, role)
+      `)
 
     if (clientError) {
       console.error("Failed to fetch clients", clientError)
@@ -63,13 +69,18 @@ useEffect(() => {
       else if (docs.some((d) => d.status === "rejected")) status = "Rejected"
       else if (docs.length > 0) status = "In Progress"
 
+      // Safely read user (creator) info
+      const userObj = Array.isArray(client.users) ? client.users[0] : client.users;
+      const email = userObj?.email || "-";
+      const role = userObj?.role || "Client";
+
       return {
         id: client.client_id,
         name: client.business_name,
-        email: "-", // no email in clients table
+        email, // no email in clients table
         progress,
         status,
-        role: "Client", // default/fake until real role logic is added
+        role, // default/fake until real role logic is added
         joinDate: client.created_at?.split("T")[0] || "-",
       }
     })
