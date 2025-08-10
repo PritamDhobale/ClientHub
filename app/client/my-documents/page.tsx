@@ -37,9 +37,11 @@ export default function MyDocumentsPage() {
 }, [user?.id]);
 
 
-  if (!user || user.role !== "client") {
-    return <div>Access denied</div>
-  }
+  // if (!user || user.role !== "client") {
+  //   return <div>Access denied</div>
+  // }
+  if (!user) return <div>Loading…</div>
+  if (user.role !== "client") return <div>Access denied</div>
 
   const getStatusColor = (status: string) => {
     switch (status) {

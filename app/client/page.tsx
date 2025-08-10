@@ -23,15 +23,34 @@ type DocumentType = {
 }
 
 export default function ClientDashboard() {
-  const router = useRouter()
-  const { user } = useAuth()
-
-  if (!user || user.role !== "client") {
-    return <div>Access denied</div>
-  }
+// --- hooks must come first ---
+const router = useRouter()
+const { user } = useAuth()
 
 const [documents, setDocuments] = useState<any[]>([])
+const [selectedFile, setSelectedFile] = useState<File | null>(null)
+const [documentType, setDocumentType] = useState("")
 
+useEffect(() => {
+  if (!user?.id) return
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("file_name, file_url, status, uploaded_at, document_type")
+      .eq("uploaded_by", user.id)
+
+    if (error) {
+      console.error("Failed to load documents:", error.message)
+    } else {
+      setDocuments(data || [])
+    }
+  }
+
+  if (user.role === "client") fetchDocuments()
+}, [user?.id])
+
+// --- helpers (no hooks below this line) ---
 const getStepStatus = (type: string): string => {
   const relevant = documents.filter((doc) =>
     doc.document_type?.toLowerCase().includes(type.toLowerCase())
@@ -81,131 +100,291 @@ const onboardingSteps = [
   },
 ]
 
-
-useEffect(() => {
-  if (!user?.id) return; // Prevent running before user is loaded
-
-  const fetchDocuments = async () => {
-    const { data, error } = await supabase
-      .from("documents")
-      .select("file_name, file_url, status, uploaded_at, document_type")
-      .eq("uploaded_by", user.id); // Correct use of id
-
-    if (error) {
-      console.error("Failed to load documents:", error.message);
-    } else {
-      setDocuments(data || []);
-    }
-  };
-
-  if (user.role === "client") {
-    fetchDocuments();
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "completed":
+    case "approved":
+      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+    case "in-progress":
+    case "pending":
+      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+    case "rejected":
+      return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+    default:
+      return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
   }
-}, [user?.id]); // 👈 dependency only on user ID
+}
 
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-      case "approved":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-      case "in-progress":
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-      case "rejected":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
-    }
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case "completed":
+    case "approved":
+      return <CheckCircle className="h-4 w-4" />
+    case "in-progress":
+    case "pending":
+      return <Clock className="h-4 w-4" />
+    case "rejected":
+      return <AlertCircle className="h-4 w-4" />
+    default:
+      return <Clock className="h-4 w-4" />
   }
+}
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-      case "approved":
-        return <CheckCircle className="h-4 w-4" />
-      case "in-progress":
-      case "pending":
-        return <Clock className="h-4 w-4" />
-      case "rejected":
-        return <AlertCircle className="h-4 w-4" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
+const completedSteps = onboardingSteps.filter((step) => step.status === "completed").length
+const progressPercentage = (completedSteps / onboardingSteps.length) * 100
+
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files && e.target.files.length > 0) {
+    setSelectedFile(e.target.files[0])
   }
+}
 
-  const completedSteps = onboardingSteps.filter((step) => step.status === "completed").length
-  const progressPercentage = (completedSteps / onboardingSteps.length) * 100
+const handleUpload = async () => {
+  if (!selectedFile || !documentType) return
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [documentType, setDocumentType] = useState("")
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0])
-    }
-  }
-
-  const handleUpload = async () => {
-  if (!selectedFile || !documentType) return;
-
-  const { data: authUser, error: authError } = await supabase.auth.getUser();
+  const { data: authUser, error: authError } = await supabase.auth.getUser()
   if (authError || !authUser?.user) {
-    console.error("Failed to get auth user:", authError);
-    return;
+    console.error("Failed to get auth user:", authError)
+    return
   }
 
-  const uid = authUser.user.id;
+  const uid = authUser.user.id
 
   const { data: clientRecord, error: clientError } = await supabase
     .from("clients")
     .select("client_id")
-    .eq("created_by", uid)  // 👈 use your actual column name
-    .maybeSingle();
+    .eq("created_by", uid)
+    .maybeSingle()
 
   if (clientError || !clientRecord) {
-  console.error("Client not found for user:", clientError || "No record");
-  return;
-}
+    console.error("Client not found for user:", clientError || "No record")
+    return
+  }
 
-  const clientId = clientRecord.client_id;
+  const clientId = clientRecord.client_id
+  const fileExt = selectedFile.name.split(".").pop()
+  const filePath = `${documentType}/${uid}/${Date.now()}.${fileExt}`
 
-  const fileExt = selectedFile.name.split(".").pop();
-  const filePath = `${documentType}/${uid}/${Date.now()}.${fileExt}`;
-
-  const { data, error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("client-documents")
-    .upload(filePath, selectedFile);
+    .upload(filePath, selectedFile)
 
   if (uploadError) {
-    console.error("Upload failed:", uploadError);
-    return;
+    console.error("Upload failed:", uploadError)
+    return
   }
 
   const { error: insertError } = await supabase.from("documents").insert([
-  {
-    uploaded_by: uid,
-    client_id: clientId,
-    file_name: selectedFile.name,
-    file_url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/client-documents/${filePath}`,
-    status: "pending",
-    uploaded_at: new Date().toISOString(),
-    file_type: selectedFile.type,
-    document_type: documentType,
-  },
-]);
-
-
+    {
+      uploaded_by: uid,
+      client_id: clientId,
+      file_name: selectedFile.name,
+      file_url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/client-documents/${filePath}`,
+      status: "pending",
+      uploaded_at: new Date().toISOString(),
+      file_type: selectedFile.type,
+      document_type: documentType,
+    },
+  ])
 
   if (insertError) {
-    console.error("Insert failed:", insertError);
-    return;
+    console.error("Insert failed:", insertError)
+    return
   }
 
-  alert("Uploaded successfully!");
-  setSelectedFile(null);
-  setDocumentType("");
-};
+  alert("Uploaded successfully!")
+  setSelectedFile(null)
+  setDocumentType("")
+}
+
+// --- put these two guards RIGHT ABOVE your JSX return ---
+if (!user) return <div>Loading…</div>
+if (user.role !== "client") return <div>Access denied</div>
+
+// --------------------------------------------------------------------------------------------------------------
+//   const router = useRouter()
+//   const { user } = useAuth()
+
+//   if (!user || user.role !== "client") {
+//     return <div>Access denied</div>
+//   }
+
+// const [documents, setDocuments] = useState<any[]>([])
+
+// const getStepStatus = (type: string): string => {
+//   const relevant = documents.filter((doc) =>
+//     doc.document_type?.toLowerCase().includes(type.toLowerCase())
+//   )
+//   return relevant[0]?.status || "pending"
+// }
+
+// const getLastUpdated = (type: string): string | null => {
+//   const relevant = documents
+//     .filter((doc) => doc.document_type?.toLowerCase().includes(type.toLowerCase()))
+//     .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+//   return relevant[0]?.uploaded_at?.split("T")[0] || null
+// }
+
+// const onboardingSteps = [
+//   {
+//     id: "profile",
+//     title: "Profile Verification",
+//     status: getStepStatus("Profile"),
+//     lastUpdated: getLastUpdated("Profile"),
+//     icon: UserIcon,
+//     description: "Personal information verified",
+//   },
+//   {
+//     id: "kyc",
+//     title: "KYC Review",
+//     status: getStepStatus("KYC"),
+//     lastUpdated: getLastUpdated("KYC"),
+//     icon: Shield,
+//     description: "Identity documents under review",
+//   },
+//   {
+//     id: "insurance",
+//     title: "Insurance Verification",
+//     status: getStepStatus("Insurance"),
+//     lastUpdated: getLastUpdated("Insurance"),
+//     icon: FileCheck,
+//     description: "Insurance documents required",
+//   },
+//   {
+//     id: "final",
+//     title: "Final Approval",
+//     status: getStepStatus("Final"),
+//     lastUpdated: getLastUpdated("Final"),
+//     icon: Award,
+//     description: "Awaiting final approval",
+//   },
+// ]
+
+
+// useEffect(() => {
+//   if (!user?.id) return; // Prevent running before user is loaded
+
+//   const fetchDocuments = async () => {
+//     const { data, error } = await supabase
+//       .from("documents")
+//       .select("file_name, file_url, status, uploaded_at, document_type")
+//       .eq("uploaded_by", user.id); // Correct use of id
+
+//     if (error) {
+//       console.error("Failed to load documents:", error.message);
+//     } else {
+//       setDocuments(data || []);
+//     }
+//   };
+
+//   if (user.role === "client") {
+//     fetchDocuments();
+//   }
+// }, [user?.id]); // 👈 dependency only on user ID
+
+
+//   const getStatusColor = (status: string) => {
+//     switch (status) {
+//       case "completed":
+//       case "approved":
+//         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+//       case "in-progress":
+//       case "pending":
+//         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+//       case "rejected":
+//         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+//       default:
+//         return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+//     }
+//   }
+
+//   const getStatusIcon = (status: string) => {
+//     switch (status) {
+//       case "completed":
+//       case "approved":
+//         return <CheckCircle className="h-4 w-4" />
+//       case "in-progress":
+//       case "pending":
+//         return <Clock className="h-4 w-4" />
+//       case "rejected":
+//         return <AlertCircle className="h-4 w-4" />
+//       default:
+//         return <Clock className="h-4 w-4" />
+//     }
+//   }
+
+//   const completedSteps = onboardingSteps.filter((step) => step.status === "completed").length
+//   const progressPercentage = (completedSteps / onboardingSteps.length) * 100
+
+//   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+//   const [documentType, setDocumentType] = useState("")
+
+//   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+//     if (e.target.files && e.target.files.length > 0) {
+//       setSelectedFile(e.target.files[0])
+//     }
+//   }
+
+//   const handleUpload = async () => {
+//   if (!selectedFile || !documentType) return;
+
+//   const { data: authUser, error: authError } = await supabase.auth.getUser();
+//   if (authError || !authUser?.user) {
+//     console.error("Failed to get auth user:", authError);
+//     return;
+//   }
+
+//   const uid = authUser.user.id;
+
+//   const { data: clientRecord, error: clientError } = await supabase
+//     .from("clients")
+//     .select("client_id")
+//     .eq("created_by", uid)  // 👈 use your actual column name
+//     .maybeSingle();
+
+//   if (clientError || !clientRecord) {
+//   console.error("Client not found for user:", clientError || "No record");
+//   return;
+// }
+
+//   const clientId = clientRecord.client_id;
+
+//   const fileExt = selectedFile.name.split(".").pop();
+//   const filePath = `${documentType}/${uid}/${Date.now()}.${fileExt}`;
+
+//   const { data, error: uploadError } = await supabase.storage
+//     .from("client-documents")
+//     .upload(filePath, selectedFile);
+
+//   if (uploadError) {
+//     console.error("Upload failed:", uploadError);
+//     return;
+//   }
+
+//   const { error: insertError } = await supabase.from("documents").insert([
+//   {
+//     uploaded_by: uid,
+//     client_id: clientId,
+//     file_name: selectedFile.name,
+//     file_url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/client-documents/${filePath}`,
+//     status: "pending",
+//     uploaded_at: new Date().toISOString(),
+//     file_type: selectedFile.type,
+//     document_type: documentType,
+//   },
+// ]);
+
+
+
+//   if (insertError) {
+//     console.error("Insert failed:", insertError);
+//     return;
+//   }
+
+//   alert("Uploaded successfully!");
+//   setSelectedFile(null);
+//   setDocumentType("");
+// };
 
   return (
     <DashboardLayout>
@@ -232,6 +411,7 @@ useEffect(() => {
           </Card>
 
           {/* Accent 2 - #476E2C */}
+          {/* <Card className="shadow-sm bg-[#00C4F0] text-white"> */}
           <Card className="shadow-sm bg-[#00C4F0] text-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Onboarding Progress</CardTitle>
@@ -310,7 +490,13 @@ useEffect(() => {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center">
+                        <Badge className={getStatusColor(step.status)}>
+                          {getStatusIcon(step.status)}
+                          <span className="ml-1 capitalize">{step.status.replace("-", " ")}</span>
+                        </Badge>
+                      </div>
+                      {/* <div className="flex items-center gap-3">
                         <Badge className={getStatusColor(step.status)}>
                           {getStatusIcon(step.status)}
                           <span className="ml-1 capitalize">{step.status.replace("-", " ")}</span>
@@ -318,7 +504,7 @@ useEffect(() => {
                         <Button variant="outline" size="sm">
                           {step.status === "pending" ? "Start" : "View"}
                         </Button>
-                      </div>
+                      </div> */}
                     </div>
                   )
                 })}

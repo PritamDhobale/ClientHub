@@ -141,17 +141,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Bullet-proof logout
   const logout = async () => {
-    try {
-      // Clear UI state immediately so protected layouts unmount
-      setUser(null)
-      // Sign out across tabs
-      await supabase.auth.signOut()
-    } finally {
-      // Go to a neutral page that doesn't auto-redirect
-      router.replace("/")
-      router.refresh()
-    }
+  try {
+    // Clear UI state first so protected pages unmount immediately
+    setUser(null)
+    // End Supabase session (all tabs)
+    await supabase.auth.signOut()
+  } finally {
+    // Go to root ("/") – safe because your root redirect only runs when `user` exists
+    router.replace("/")
+    router.refresh()
   }
+}
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>

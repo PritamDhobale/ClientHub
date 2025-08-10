@@ -8,9 +8,11 @@ import { FileUpload } from "@/components/file-upload"
 export default function UploadDocumentsPage() {
   const { user } = useAuth()
 
-  if (!user || user.role !== "client") {
-    return <div>Access denied</div>
-  }
+  // if (!user || user.role !== "client") {
+  //   return <div>Access denied</div>
+  // }
+  if (!user) return <div>Loading…</div>
+  if (user.role !== "client") return <div>Access denied</div>
 
   return (
     <DashboardLayout breadcrumbs={[{ label: "Upload Documents" }]}>

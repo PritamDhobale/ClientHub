@@ -129,10 +129,12 @@ export default function OnboardingStatusPage() {
 
   const progressPercentage = (completedSteps / onboardingSteps.length) * 100
 
-  if (!user || user.role !== "client") {
-    return <div>Access denied</div>
-  }
-
+  // if (!user || user.role !== "client") {
+  //   return <div>Access denied</div>
+  // }
+  if (!user) return <div>Loading…</div>
+  if (user.role !== "client") return <div>Access denied</div>
+  
   return (
     <DashboardLayout breadcrumbs={[{ label: "Onboarding Status" }]}>
       <div className="space-y-6">
@@ -189,7 +191,7 @@ export default function OnboardingStatusPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    {/* <div className="flex items-center gap-3">
                       <Badge className={getStatusColor(step.status)}>
                         {getStatusIcon(step.status)}
                         <span className="ml-1 capitalize">{step.status.replace("-", " ")}</span>
@@ -197,6 +199,12 @@ export default function OnboardingStatusPage() {
                       <Button variant="outline" size="sm">
                         {step.status === "pending" ? "Start" : step.status === "approved" ? "View" : "Continue"}
                       </Button>
+                    </div> */}
+                    <div className="flex items-center">
+                      <Badge className={getStatusColor(step.status)}>
+                        {getStatusIcon(step.status)}
+                        <span className="ml-1 capitalize">{step.status.replace("-", " ")}</span>
+                      </Badge>
                     </div>
                   </div>
                 </div>
