@@ -25,6 +25,13 @@ type ClientRow = {
   joinDate: string
 }
 
+type Creator = { email?: string | null; role?: string | null };
+
+/** If PostgREST ever returns an array for a relation, take first; else pass through. */
+const toOne = <T,>(v: T | T[] | null | undefined): T | null =>
+  Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+
+
 export default function AdminDashboard() {
   const { user } = useAuth()
   const router = useRouter()
@@ -33,14 +40,26 @@ export default function AdminDashboard() {
 useEffect(() => {
   const fetchClients = async () => {
     const { data: clientData, error: clientError } = await supabase
-      .from("clients")
-      .select(`
-        client_id,
-        business_name,
-        created_at,
-        created_by,
-        users:created_by (email, role)
-      `)
+  .from("clients")
+  .select(`
+    client_id,
+    business_name,
+    created_at,
+    created_by,
+    creator:users!clients_created_by_fkey (
+      email,
+      role
+    )
+  `);
+    // const { data: clientData, error: clientError } = await supabase
+    //   .from("clients")
+    //   .select(`
+    //     client_id,
+    //     business_name,
+    //     created_at,
+    //     created_by,
+    //     users:created_by (email, role)
+    //   `)
 
     if (clientError) {
       console.error("Failed to fetch clients", clientError)
@@ -70,9 +89,18 @@ useEffect(() => {
       else if (docs.length > 0) status = "In Progress"
 
       // Safely read user (creator) info
-      const userObj = Array.isArray(client.users) ? client.users[0] : client.users;
-      const email = userObj?.email || "-";
-      const role = userObj?.role || "Client";
+      // const userObj = Array.isArray(client.users) ? client.users[0] : client.users;
+      // const email = userObj?.email || "-";
+      // const role = userObj?.role || "Client";
+      // const userObj = client.creator; // comes from alias above
+      // const email = userObj?.email ?? "-";
+      // const role  = userObj?.role  ?? "Client";
+      // Safely read user (creator) info
+      const creator = toOne<Creator>((client as any).creator ?? (client as any).users);
+      const email = creator?.email ?? "-";
+      const role  = creator?.role  ?? "Client";
+
+
 
       return {
         id: client.client_id,

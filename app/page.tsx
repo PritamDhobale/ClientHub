@@ -48,6 +48,12 @@ export default function LoginPage() {
         return
       }
 
+      // ✅ Ensure Supabase session is actually created
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        await new Promise((r) => setTimeout(r, 500))
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setError("Login failed.")
@@ -55,19 +61,19 @@ export default function LoginPage() {
         return
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from("users")
         .select("role")
         .eq("id", user.id)
         .single()
 
-      if (profileError || !profile) {
+      if (!profile) {
         setError("Unable to retrieve user role.")
         setIsLoading(false)
         return
       }
 
-      // Redirect to role-based dashboard
+      // ✅ Role-based redirect
       switch (profile.role) {
         case "Admin":
           router.push("/admin")
@@ -79,7 +85,7 @@ export default function LoginPage() {
           router.push("/service-center")
           break
         default:
-          router.push(redirect || "/") // use redirect param
+          router.push("/")
       }
 
     } catch (err) {
@@ -155,7 +161,7 @@ export default function LoginPage() {
       </div>
 
       <div className="powered-by-text">POWERED BY HUBONE SYSTEMS</div>
-      <p className="footer-text">© 2014–2025 HubOne Systems Inc. – All Rights Reserved</p>
+      <p className="footer-text">© 2014–2026 HubOne Systems Inc. – All Rights Reserved</p>
     </div>
   )
 }
